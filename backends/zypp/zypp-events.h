@@ -303,7 +303,7 @@ struct DownloadProgressReportReceiver : public zypp::callback::ReceiveReport<zyp
 	virtual void start (const zypp::Url &file, zypp::Pathname localfile)
 	{
 		clear_package_id ();
-		_package_id = build_package_id_from_url (&file);
+    _package_id = g_strdup (zypp::Pathname (file.getPathName ()).basename ().c_str());
 
 		//g_debug ("DownloadProgressReportReceiver::start():%s --%s\n",
 		//		g_strdup (file.asString().c_str()),	g_strdup (localfile.asString().c_str()) );
