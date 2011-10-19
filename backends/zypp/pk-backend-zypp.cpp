@@ -1398,6 +1398,8 @@ pk_backend_resolve (PkBackend *backend, PkBitfield filters, gchar **package_ids)
 static gboolean
 backend_find_packages_thread (PkBackend *backend)
 {
+	static bool refreshed = false;
+
 	MIL << endl;
 	gchar **values;
 	const gchar *search;
@@ -1411,9 +1413,13 @@ backend_find_packages_thread (PkBackend *backend)
 	}
 
 	// refresh the repos before searching
-	if (!zypp_refresh_cache (backend, FALSE)) {
-		pk_backend_finished (backend);
-		return FALSE;
+	if (!refreshed) {
+		if (!zypp_refresh_cache (backend, FALSE)) {
+			pk_backend_finished (backend);
+			return FALSE;
+		}
+		else
+			refreshed = true;
 	}
 
 	values = pk_backend_get_strv (backend, "search");
@@ -2075,10 +2081,15 @@ backend_download_packages_thread (PkBackend *backend)
 	MIL << endl;
 	gchar **package_ids;
 	gulong size = 0;
+	static bool refreshed = false;
 
-	if (!zypp_refresh_cache (backend, FALSE)) {
-		pk_backend_finished (backend);
-		return FALSE;
+	if (! refreshed) {
+		if (!zypp_refresh_cache (backend, FALSE)) {
+			pk_backend_finished (backend);
+			return FALSE;
+		}
+		else
+			refreshed = true;
 	}
 
 	ZYpp::Ptr zypp;
