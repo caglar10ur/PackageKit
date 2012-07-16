@@ -146,33 +146,34 @@ zypp_is_changeable_media (PkBackend *backend, const Url &url)
 	return is_cd;
 }
 
+namespace {
+	/// Helper finding pattern at end or embedded in name.
+	/// E.g '-debug' in 'repo-debug' or 'repo-debug-update'
+	inline bool
+	name_ends_or_contains( const std::string & name_r, const std::string & pattern_r, const char sepchar_r = '-' )
+	{
+		if ( ! pattern_r.empty() )
+		{
+			for ( std::string::size_type pos = name_r.find( pattern_r );
+			      pos != std::string::npos;
+			      pos = name_r.find( pattern_r, pos + pattern_r.size() ) )
+			{
+				if ( pos + pattern_r.size() == name_r.size()		// at end
+				  || name_r[pos + pattern_r.size()] == sepchar_r )	// embedded
+					return true;
+			}
+		}
+		return false;
+	}
+}
+
 gboolean
 zypp_is_development_repo (PkBackend *backend, RepoInfo repo)
 {
-	string repo_debuginfo("-debuginfo");
-	string repo_debug("-debug");
-	string repo_development("-development");
-	string repo_source ("-source");
-
-	string repo_name(repo.name());
-
-	if (repo_name.length() > repo_debuginfo.length() &&
-	    repo_name.compare(repo_name.length() - repo_debuginfo.length(), repo_debuginfo.length(), repo_debuginfo) == 0)
-		return TRUE;
-
-	if (repo_name.length() > repo_debug.length() &&
-	    repo_name.compare(repo_name.length() - repo_debug.length(), repo_debug.length(), repo_debug) == 0)
-		return TRUE;
-
-	if (repo_name.length() > repo_development.length() &&
-	    repo_name.compare(repo_name.length() - repo_development.length(), repo_development.length(), repo_development) == 0)
-		return TRUE;
-
-	if (repo_name.length() > repo_source.length() &&
-	   repo_name.compare(repo_name.length() - repo_source.length(), repo_source.length(), repo_source) == 0)
-		return TRUE;
-
-	return FALSE;
+	return ( name_ends_or_contains( repo.alias(), "-debuginfo" )
+	      || name_ends_or_contains( repo.alias(), "-debug" )
+	      || name_ends_or_contains( repo.alias(), "-source" )
+	      || name_ends_or_contains( repo.alias(), "-development" ) );
 }
 
 gboolean
@@ -224,7 +225,7 @@ zypp_build_pool (PkBackend *backend, gboolean include_local)
 	// Add resolvables from enabled repos
 	RepoManager manager;
 	try {
-		for (RepoManager::RepoConstIterator it = manager.repoBegin(); it != manager.repoEnd(); it++) {
+		for (RepoManager::RepoConstIterator it = manager.repoBegin(); it != manager.repoEnd(); ++it) {
 			RepoInfo repo (*it);
 
 			// skip disabled repos
@@ -365,7 +366,7 @@ zypp_get_packages_by_name (PkBackend *backend,
 	ResPool pool(ResPool::instance());
 
         for (ResPool::byIdent_iterator it = pool.byIdentBegin (kind, package_name);
-                        it != pool.byIdentEnd (kind, package_name); it++) {
+                        it != pool.byIdentEnd (kind, package_name); ++it) {
                 result.push_back (it->satSolvable ());
         }
 }
@@ -393,7 +394,7 @@ zypp_get_packages_by_file (PkBackend *backend,
 		Capability cap (search_file);
 		sat::WhatProvides prov (cap);
 
-		for(sat::WhatProvides::const_iterator it = prov.begin (); it != prov.end (); it++) {
+		for(sat::WhatProvides::const_iterator it = prov.begin (); it != prov.end (); ++it) {
 			ret.push_back (*it);
 		}
 	}
@@ -422,7 +423,7 @@ zypp_get_package_by_id (PkBackend *backend, const gchar *package_id)
 	sat::Solvable package;
 
 	for (vector<sat::Solvable>::iterator it = v.begin ();
-			it != v.end (); it++) {
+			it != v.end (); ++it) {
 		if (zypp_ver_and_arch_equal (*it, id_parts[PK_PACKAGE_ID_VERSION],
 					     id_parts[PK_PACKAGE_ID_ARCH])) {
 			package = *it;
@@ -588,8 +589,7 @@ gboolean
 system_and_package_are_x86 (sat::Solvable item)
 {
 	// i586, i686, ... all should be considered the same arch for our comparison
-	return (!strcmp (item.arch ().asString ().c_str (), "i586") &&
-			!strcmp (ZConfig::defaultSystemArchitecture ().asString().c_str(), "i686"));
+	return ( item.arch() == Arch_i586 && ZConfig::defaultSystemArchitecture() == Arch_i686 );
 }
 
 static gboolean
@@ -660,7 +660,7 @@ zypp_emit_filtered_packages_in_list (PkBackend *backend, const vector<sat::Solva
 	PkBitfield filters = (PkBitfield) pk_backend_get_uint (backend, "filters");
 
 	// always emit system installed packages first
-	for (sat_it_t it = v.begin (); it != v.end (); it++) {
+	for (sat_it_t it = v.begin (); it != v.end (); ++it) {
 		if (!it->isSystem() ||
 		    zypp_filter_solvable (filters, *it))
 			continue;
@@ -671,7 +671,7 @@ zypp_emit_filtered_packages_in_list (PkBackend *backend, const vector<sat::Solva
 	}
 
 	// then available packages later
-	for (sat_it_t it = v.begin (); it != v.end (); it++) {
+	for (sat_it_t it = v.begin (); it != v.end (); ++it) {
 		gboolean match;
 
 		if (it->isSystem() ||
@@ -869,7 +869,7 @@ zypp_perform_execution (PkBackend *backend, PerformType type, gboolean force)
 			ResolverProblemList problems = zypp->resolver ()->problems ();
 			gchar * emsg = NULL, * tempmsg = NULL;
 
-			for (ResolverProblemList::iterator it = problems.begin (); it != problems.end (); it++) {
+			for (ResolverProblemList::iterator it = problems.begin (); it != problems.end (); ++it) {
 				if (emsg == NULL) {
 					emsg = g_strdup ((*it)->description ().c_str ());
 				}
@@ -882,7 +882,7 @@ zypp_perform_execution (PkBackend *backend, PerformType type, gboolean force)
 
 			// reset the status of all touched PoolItems
 			ResPool pool = ResPool::instance ();
-			for (ResPool::const_iterator it = pool.begin (); it != pool.end (); it++) {
+			for (ResPool::const_iterator it = pool.begin (); it != pool.end (); ++it) {
 				if (it->status ().isToBeInstalled ())
 					it->statusReset ();
 			}
@@ -911,7 +911,7 @@ zypp_perform_execution (PkBackend *backend, PerformType type, gboolean force)
 
 			g_debug ("simulating");
 
-			for (ResPool::const_iterator it = pool.begin (); it != pool.end (); it++) {
+			for (ResPool::const_iterator it = pool.begin (); it != pool.end (); ++it) {
 				if (type == REMOVE && !(*it)->isSystem ()) {
 					it->statusReset ();
 					continue;
@@ -926,7 +926,7 @@ zypp_perform_execution (PkBackend *backend, PerformType type, gboolean force)
 
 		// look for licenses to confirm
 
-		for (ResPool::const_iterator it = pool.begin (); it != pool.end (); it++) {
+		for (ResPool::const_iterator it = pool.begin (); it != pool.end (); ++it) {
 			if (it->status ().isToBeInstalled () && !(it->satSolvable ().lookupStrAttribute (sat::SolvAttr::eula).empty ())) {
 				gchar *eula_id = g_strdup ((*it)->name ().c_str ());
 				gboolean has_eula = pk_backend_is_eula_valid (backend, eula_id);
@@ -957,50 +957,30 @@ zypp_perform_execution (PkBackend *backend, PerformType type, gboolean force)
 
                 ZYppCommitResult result = zypp->commit (policy);
 
-                if(!result._errors.empty () || !result._remaining.empty () || !result._srcremaining.empty ()){
+		if ( ! result.allDone() )
+		{
+			std::ostringstream todolist;
+			char separator = '\0';
 
-			ZYppCommitResult::PoolItemList errors = result._errors;
-			gchar *emsg = NULL, *tmpmsg = NULL;
-
-			for (ZYppCommitResult::PoolItemList::iterator it = errors.begin (); it != errors.end (); it++){
-				if (emsg == NULL) {
-					emsg = g_strdup ((*it)->name ().c_str ());
-				} else {
-					tmpmsg = emsg;
-					emsg = g_strconcat (emsg, "\n", (*it)->name ().c_str (), NULL);
-					g_free (tmpmsg);
-				}
-			}
-
-			ZYppCommitResult::PoolItemList remaining = result._remaining;
-			for (ZYppCommitResult::PoolItemList::iterator it = remaining.begin (); it != remaining.end (); it++){
-				if (emsg == NULL) {
-					emsg = g_strdup ((*it)->name ().c_str ());
-				} else {
-					tmpmsg = emsg;
-					emsg = g_strconcat (emsg, "\n", (*it)->name ().c_str (), NULL);
-					g_free (tmpmsg);
-				}
-			}
-
-			ZYppCommitResult::PoolItemList srcremaining = result._srcremaining;
-			for (ZYppCommitResult::PoolItemList::iterator it = srcremaining.begin (); it != srcremaining.end (); it++){
-				if (emsg == NULL) {
-					emsg = g_strdup ((*it)->name ().c_str ());
-				} else {
-					tmpmsg = emsg;
-					emsg = g_strconcat (emsg, "\n", (*it)->name ().c_str (), NULL);
-					g_free (tmpmsg);
+			// process all steps not DONE (ERROR and TODO)
+			const sat::Transaction & trans( result.transaction() );
+			for_( it, trans.actionBegin(~sat::Transaction::STEP_DONE), trans.actionEnd() )
+			{
+				if ( separator )
+					todolist << separator << it->ident();
+				else
+				{
+					todolist << it->ident();
+					separator = '\n';
 				}
 			}
 
                         pk_backend_error_code (backend, PK_ERROR_ENUM_TRANSACTION_ERROR,
 					"Transaction could not be completed.\n Theses packages could not be installed: %s",
-					emsg);
+					todolist.str().c_str());
 
-			g_free (emsg);
 			goto exit;
-                }
+		}
 
 		ret = TRUE;
         } catch (const repo::RepoNotFoundException &ex) {
@@ -1030,7 +1010,7 @@ zypp_build_package_id_capabilities (Capabilities caps)
 
 	sat::WhatProvides provs (caps);
 
-	for (sat::WhatProvides::const_iterator it = provs.begin (); it != provs.end (); it++) {
+	for (sat::WhatProvides::const_iterator it = provs.begin (); it != provs.end (); ++it) {
 		gchar *package_id = zypp_build_package_id_from_resolvable (*it);
 		//package_ids = g_strconcat (package_ids, package_id, PK_PACKAGE_IDS_DELIM, (gchar *)NULL);
 		if (strlen (package_ids) == 0) {
@@ -1076,7 +1056,7 @@ zypp_refresh_cache (PkBackend *backend, gboolean force)
 	int num_of_repos = repos.size ();
 	gchar *repo_messages = NULL;
 
-	for (list <RepoInfo>::iterator it = repos.begin(); it != repos.end(); it++, i++) {
+	for (list <RepoInfo>::iterator it = repos.begin(); it != repos.end(); ++it, i++) {
 		RepoInfo repo (*it);
 
 		if (!zypp_is_valid_repo (backend, repo))

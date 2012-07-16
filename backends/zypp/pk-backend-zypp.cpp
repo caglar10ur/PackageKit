@@ -191,7 +191,7 @@ backend_get_requires_thread (PkBackend *backend)
 			gchar **id_parts = pk_package_id_split (package_ids[i]);
 
 			for (ResPool::byIdent_iterator it = pool.byIdentBegin (ResKind::package, id_parts[PK_PACKAGE_ID_NAME]);
-					it != pool.byIdentEnd (ResKind::package, id_parts[PK_PACKAGE_ID_NAME]); it++) {
+					it != pool.byIdentEnd (ResKind::package, id_parts[PK_PACKAGE_ID_NAME]); ++it) {
 				if (it->status ().isInstalled ()) {
 					package = (*it);
 					found = TRUE;
@@ -228,7 +228,7 @@ backend_get_requires_thread (PkBackend *backend)
 
 		if (!solver.resolvePool ()) {
 			list<ResolverProblem_Ptr> problems = solver.problems ();
-			for (list<ResolverProblem_Ptr>::iterator it = problems.begin (); it != problems.end (); it++){
+			for (list<ResolverProblem_Ptr>::iterator it = problems.begin (); it != problems.end (); ++it){
 				g_warning("Solver problem (This should never happen): '%s'", (*it)->description ().c_str ());
 			}
 			return zypp_backend_finished_error (
@@ -239,7 +239,7 @@ backend_get_requires_thread (PkBackend *backend)
 		// look for packages which would be uninstalled
 		bool error = false;
 		for (ResPool::byKind_iterator it = pool.byKindBegin (ResKind::package);
-				it != pool.byKindEnd (ResKind::package); it++) {
+				it != pool.byKindEnd (ResKind::package); ++it) {
 
 			if (!error && !zypp_filter_solvable (_filters, it->resolvable()->satSolvable()))
 				error = !zypp_backend_pool_item_notify (backend, *it);
@@ -351,7 +351,7 @@ backend_get_depends_thread (PkBackend *backend)
 		gboolean pool_item_found = FALSE;
 		// Iterate over the resolvables and mark the one we want to check its dependencies
 		for (ResPool::byIdent_iterator it = pool.byIdentBegin (ResKind::package, id_parts[PK_PACKAGE_ID_NAME]);
-				it != pool.byIdentEnd (ResKind::package, id_parts[PK_PACKAGE_ID_NAME]); it++) {
+				it != pool.byIdentEnd (ResKind::package, id_parts[PK_PACKAGE_ID_NAME]); ++it) {
 			PoolItem selectable = *it;
 			if (strcmp (selectable->name().c_str(), id_parts[PK_PACKAGE_ID_NAME]) == 0) {
 				// This package matches the name we're looking
@@ -446,7 +446,7 @@ backend_get_depends_thread (PkBackend *backend)
 		// print dependencies
 		for (map<string, sat::Solvable>::iterator it = caps.begin ();
 				it != caps.end();
-				it++) {
+				++it) {
 
 			// backup sanity check for no-solvables
 			if (! it->second.name ().c_str() ||
@@ -524,7 +524,7 @@ backend_get_details_thread (PkBackend *backend)
 
 		sat::Solvable package;
 		for (vector<sat::Solvable>::iterator it = v.begin ();
-				it != v.end (); it++) {
+				it != v.end (); ++it) {
 			if (zypp_ver_and_arch_equal (*it, id_parts[PK_PACKAGE_ID_VERSION],
 						     id_parts[PK_PACKAGE_ID_ARCH])) {
 				package = *it;
@@ -560,7 +560,7 @@ backend_get_details_thread (PkBackend *backend)
 					Patch::constPtr patch = asKind<Patch>(item);
 
 					sat::SolvableSet content = patch->contents ();
-					for (sat::SolvableSet::const_iterator it = content.begin (); it != content.end (); it++)
+					for (sat::SolvableSet::const_iterator it = content.begin (); it != content.end (); ++it)
 						size += it->lookupNumAttribute (sat::SolvAttr::downloadsize);
 				} else
 					size = package.lookupNumAttribute (sat::SolvAttr::downloadsize);
@@ -621,7 +621,7 @@ backend_get_distro_upgrades_thread(PkBackend *backend)
 			backend, PK_ERROR_ENUM_INTERNAL_ERROR, "Could not parse /etc/products.d");
 	}
 
-	for (vector<parser::ProductFileData>::iterator it = result.begin (); it != result.end (); it++) {
+	for (vector<parser::ProductFileData>::iterator it = result.begin (); it != result.end (); ++it) {
 		vector<parser::ProductFileData::Upgrade> upgrades = it->upgrades();
 		for (vector<parser::ProductFileData::Upgrade>::iterator it2 = upgrades.begin (); it2 != upgrades.end (); it2++) {
 			if (it2->notify ()){
@@ -948,7 +948,7 @@ backend_get_update_detail_thread (PkBackend *backend)
 
 			sat::SolvableSet content = patch->contents ();
 
-			for (sat::SolvableSet::const_iterator it = content.begin (); it != content.end (); it++) {
+			for (sat::SolvableSet::const_iterator it = content.begin (); it != content.end (); ++it) {
 				//obsoletes = g_strconcat (obsoletes, zypp_build_package_id_capabilities (it->obsoletes ()), PK_PACKAGE_IDS_DELIM, (gchar *)NULL);
 				if (strlen(obsoletes) == 0) {
 					obsoletes = zypp_build_package_id_capabilities (it->obsoletes ());
@@ -1096,7 +1096,7 @@ backend_install_packages_thread (PkBackend *backend)
 			// Do we have this installed ?
 			gboolean system = false;
 			for (ResPool::byName_iterator it = pool.byNameBegin (name);
-			     it != pool.byNameEnd (name); it++) {
+			     it != pool.byNameEnd (name); ++it) {
 
 				g_debug ("PoolItem '%s'", it->satSolvable().asString().c_str());
 
@@ -1115,7 +1115,7 @@ backend_install_packages_thread (PkBackend *backend)
 
 				// Choose the PoolItem with the right architecture and version
 				for (ResPool::byName_iterator it = pool.byNameBegin (name);
-				     it != pool.byNameEnd (name); it++) {
+				     it != pool.byNameEnd (name); ++it) {
 
 					if (zypp_ver_and_arch_equal (it->satSolvable(), id_parts[PK_PACKAGE_ID_VERSION],
 								     id_parts[PK_PACKAGE_ID_ARCH])) {
@@ -1150,7 +1150,7 @@ backend_install_packages_thread (PkBackend *backend)
 		// PK_INFO_ENUM_DOWNLOADING | INSTALLING) for each package.
 		if (!zypp_perform_execution (backend, INSTALL, FALSE)) {
 			// reset the status of the marked packages
-			for (vector<PoolItem>::iterator it = items->begin (); it != items->end (); it++) {
+			for (vector<PoolItem>::iterator it = items->begin (); it != items->end (); ++it) {
 				it->statusReset ();
 			}
 			delete (items);
@@ -1250,7 +1250,7 @@ backend_remove_packages_thread (PkBackend *backend)
 		// Iterate over the resolvables and mark the ones we want to remove
 		ResPool pool = ResPool::instance ();
 		for (ResPool::byIdent_iterator it = pool.byIdentBegin (ResKind::package, id_parts[PK_PACKAGE_ID_NAME]);
-				it != pool.byIdentEnd (ResKind::package, id_parts[PK_PACKAGE_ID_NAME]); it++) {
+				it != pool.byIdentEnd (ResKind::package, id_parts[PK_PACKAGE_ID_NAME]); ++it) {
 			if ((*it)->isSystem ()) {
 				it->status ().setToBeUninstalled (ResStatus::USER);
 				items->push_back (*it);
@@ -1268,7 +1268,7 @@ backend_remove_packages_thread (PkBackend *backend)
 	{
 		if (!zypp_perform_execution (backend, REMOVE, TRUE)) {
 			//reset the status of the marked packages
-			for (vector<PoolItem>::iterator it = items->begin (); it != items->end (); it++) {
+			for (vector<PoolItem>::iterator it = items->begin (); it != items->end (); ++it) {
 				it->statusReset();
 			}
 			delete (items);
@@ -1347,7 +1347,7 @@ backend_resolve_thread (PkBackend *backend)
 		vector<sat::Solvable> pkgs;
 
 		/* Filter the list of packages with this name to 'pkgs' */
-		for (vector<sat::Solvable>::iterator it = v.begin (); it != v.end (); it++) {
+		for (vector<sat::Solvable>::iterator it = v.begin (); it != v.end (); ++it) {
 
 			if (zypp_filter_solvable (_filters, *it) ||
 			    *it == sat::Solvable::noSolvable)
@@ -1514,7 +1514,7 @@ backend_search_group_thread (PkBackend *backend)
 
 	sat::LookupAttr look (sat::SolvAttr::group);
 
-	for (sat::LookupAttr::iterator it = look.begin (); it != look.end (); it++) {
+	for (sat::LookupAttr::iterator it = look.begin (); it != look.end (); ++it) {
 		PkGroupEnum rpmGroup = get_enum_group (it.asString ());
 		if (pkGroup == rpmGroup)
 			v.push_back (it.inSolvable ());
@@ -1580,7 +1580,7 @@ pk_backend_get_repo_list (PkBackend *backend, PkBitfield filters)
 		return;
 	}
 
-	for (list <RepoInfo>::iterator it = repos.begin(); it != repos.end(); it++) {
+	for (list <RepoInfo>::iterator it = repos.begin(); it != repos.end(); ++it) {
 		if (pk_bitfield_contain (filters, PK_FILTER_ENUM_NOT_DEVELOPMENT) && zypp_is_development_repo (backend, *it))
 			continue;
 		// RepoInfo::alias - Unique identifier for this source.
@@ -1672,7 +1672,7 @@ backend_get_files_thread (PkBackend *backend)
 
 		sat::Solvable package;
 		for (vector<sat::Solvable>::iterator it = v.begin ();
-				it != v.end (); it++) {
+				it != v.end (); ++it) {
 			char *version = g_strdup (it->edition ().asString ().c_str ());
 			if (strcmp (id_parts[PK_PACKAGE_ID_VERSION], version) == 0) {
 				g_free (version);
@@ -1695,7 +1695,7 @@ backend_get_files_thread (PkBackend *backend)
 				target::rpm::RpmHeader::constPtr rpmHeader = zypp_get_rpmHeader (package.name (), package.edition ());
 				list<string> files = rpmHeader->tag_filenames ();
 
-				for (list<string>::iterator it = files.begin (); it != files.end (); it++) {
+				for (list<string>::iterator it = files.begin (); it != files.end (); ++it) {
 					temp.append (*it);
 					temp.append (";");
 				}
@@ -1742,7 +1742,7 @@ backend_get_packages_thread (PkBackend *backend)
 
 	zypp_build_pool (backend, TRUE);
 	ResPool pool = ResPool::instance ();
-	for (ResPool::byKind_iterator it = pool.byKindBegin (ResKind::package); it != pool.byKindEnd (ResKind::package); it++) {
+	for (ResPool::byKind_iterator it = pool.byKindBegin (ResKind::package); it != pool.byKindEnd (ResKind::package); ++it) {
 		v.push_back (it->satSolvable ());
 	}
 
@@ -1786,7 +1786,7 @@ backend_update_packages_thread (PkBackend *backend)
 		// Do we have already the latest version.
 		gboolean system = false;
 		for (ResPool::byName_iterator it = pool.byNameBegin (name);
-				it != pool.byNameEnd (name); it++) {
+				it != pool.byNameEnd (name); ++it) {
 			if (!it->satSolvable().isSystem())
 				continue;
 			if (zypp_ver_and_arch_equal (it->satSolvable(), id_parts[PK_PACKAGE_ID_VERSION],
@@ -2000,7 +2000,7 @@ backend_what_provides_thread (PkBackend *backend)
 
 		if (!solver.resolvePool ()) {
 			list<ResolverProblem_Ptr> problems = solver.problems ();
-			for (list<ResolverProblem_Ptr>::iterator it = problems.begin (); it != problems.end (); it++){
+			for (list<ResolverProblem_Ptr>::iterator it = problems.begin (); it != problems.end (); ++it){
 				g_warning("Solver problem (This should never happen): '%s'", (*it)->description ().c_str ());
 			}
 			solver.setIgnoreAlreadyRecommended (FALSE);
@@ -2010,7 +2010,7 @@ backend_what_provides_thread (PkBackend *backend)
 
 		// look for packages which would be installed
 		for (ResPool::byKind_iterator it = pool.byKindBegin (ResKind::package);
-				it != pool.byKindEnd (ResKind::package); it++) {
+				it != pool.byKindEnd (ResKind::package); ++it) {
 			PkInfoEnum status = PK_INFO_ENUM_UNKNOWN;
 
 			gboolean hit = FALSE;
@@ -2031,7 +2031,7 @@ backend_what_provides_thread (PkBackend *backend)
 		Capability cap (search);
 		sat::WhatProvides prov (cap);
 
-		for (sat::WhatProvides::const_iterator it = prov.begin (); it != prov.end (); it++) {
+		for (sat::WhatProvides::const_iterator it = prov.begin (); it != prov.end (); ++it) {
 			if (zypp_filter_solvable (_filters, *it))
 				continue;
 
@@ -2094,7 +2094,7 @@ backend_download_packages_thread (PkBackend *backend)
 			gchar **id_parts = pk_package_id_split (package_ids[i]);
 			string name = id_parts[PK_PACKAGE_ID_NAME];
 
-			for (ResPool::byName_iterator it = pool.byNameBegin (name); it != pool.byNameEnd (name); it++) {
+			for (ResPool::byName_iterator it = pool.byNameBegin (name); it != pool.byNameEnd (name); ++it) {
 				if (zypp_ver_and_arch_equal (it->satSolvable(), id_parts[PK_PACKAGE_ID_VERSION],
 							     id_parts[PK_PACKAGE_ID_ARCH])) {
 					size += 2 * it->satSolvable().lookupNumAttribute (sat::SolvAttr::downloadsize);
