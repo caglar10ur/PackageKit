@@ -214,8 +214,7 @@ backend_get_requires_thread (PkBackend *backend)
 					"Package couldn't be found");
 			}
 
-			ResPool pool = ResPool::instance ();
-			package = pool.find (solvable);
+			package = PoolItem(solvable);
 			//set Package as to be installed
 			package.status ().setToBeInstalled (ResStatus::USER);
 		}
@@ -453,7 +452,7 @@ backend_get_depends_thread (PkBackend *backend)
 			    it->second.name ().c_str()[0] == '\0')
 				continue;
 
-			PoolItem item = ResPool::instance ().find (it->second);
+			PoolItem item(it->second);
 			PkInfoEnum info = it->second.isSystem () ? PK_INFO_ENUM_INSTALLED : PK_INFO_ENUM_AVAILABLE;
 
 			g_debug ("add dep - '%s' '%s' %d [%s]", it->second.name().c_str(),
@@ -522,61 +521,46 @@ backend_get_details_thread (PkBackend *backend)
 		v.insert (v.end (), v2.begin (), v2.end ());
 		v.insert (v.end (), v3.begin (), v3.end ());
 
-		sat::Solvable package;
+		sat::Solvable solv;
 		for (vector<sat::Solvable>::iterator it = v.begin ();
 				it != v.end (); ++it) {
 			if (zypp_ver_and_arch_equal (*it, id_parts[PK_PACKAGE_ID_VERSION],
 						     id_parts[PK_PACKAGE_ID_ARCH])) {
-				package = *it;
+				solv = *it;
 				break;
 			}
 		}
 		g_strfreev (id_parts);
 
-		if (package == NULL) {
+		ResObject::constPtr obj = make<ResObject>( solv );
+		if (obj == NULL) {
 			return zypp_backend_finished_error (
 				backend, PK_ERROR_ENUM_PACKAGE_NOT_FOUND, "couldn't find package");
 		}
 
 		try {
-			PkGroupEnum group = get_enum_group (zypp_get_group (package));
+			Package::constPtr pkg = make<Package>( solv );	// or NULL if not a Package
+			Patch::constPtr patch = make<Patch>( solv );	// or NULL if not a Patch
 
-			if (package.isSystem ()){
-				target::rpm::RpmHeader::constPtr rpmHeader = zypp_get_rpmHeader (package.name (), package.edition ());
-
-				pk_backend_details (backend,
-					package_ids[i],			  // package_id
-					rpmHeader->tag_license ().c_str (),     // const gchar *license
-					group,				  // PkGroupEnum group
-					package.lookupStrAttribute (sat::SolvAttr::description).c_str (), //pkg->description ().c_str (),
-					rpmHeader->tag_url (). c_str (),	// const gchar *url
-					(gulong)rpmHeader->tag_archivesize ());	// gulong size
-
-			} else {
-				gulong size = 0;
-
-				if (isKind<Patch>(package)) {
-					PoolItem item = ResPool::instance ().find (package);
-					Patch::constPtr patch = asKind<Patch>(item);
-
-					sat::SolvableSet content = patch->contents ();
-					for (sat::SolvableSet::const_iterator it = content.begin (); it != content.end (); ++it)
-						size += it->lookupNumAttribute (sat::SolvAttr::downloadsize);
-				} else
-					size = package.lookupNumAttribute (sat::SolvAttr::downloadsize);
-
-				pk_backend_details (backend,
-						    package_ids[i],
-						    package.lookupStrAttribute (sat::SolvAttr::license).c_str (),
-						    group,
-						    package.lookupStrAttribute (sat::SolvAttr::description).c_str (),
-						    package.lookupStrAttribute (sat::SolvAttr::url).c_str (),
-						    size * 1024);
+			ByteCount size;
+			if ( patch ) {
+				Patch::Contents contents( patch->contents() );
+				for_( it, contents.begin(), contents.end() ) {
+					size += make<ResObject>(*it)->downloadSize();
+				}
+			}
+			else {
+				size = obj->isSystem() ? obj->installSize() : obj->downloadSize();
 			}
 
-		} catch (const target::rpm::RpmException &ex) {
-			return zypp_backend_finished_error (
-				backend, PK_ERROR_ENUM_REPO_NOT_FOUND, "Couldn't open rpm-database");
+			pk_backend_details (backend,
+				package_ids[i],				// package_id
+				(pkg ? pkg->license().c_str() : "" ),	// license is Package attribute
+				get_enum_group(pkg ? pkg->group() : ""),// PkGroupEnum
+				obj->description().c_str(),		// description is common attibute
+				(pkg ? pkg->url().c_str() : "" ),	// url is Package attribute
+				(gulong)size);
+
 		} catch (const Exception &ex) {
 			return zypp_backend_finished_error (
 				backend, PK_ERROR_ENUM_INTERNAL_ERROR, ex.asUserString ().c_str ());
@@ -920,13 +904,11 @@ backend_get_update_detail_thread (PkBackend *backend)
 
 		PkRestartEnum restart = PK_RESTART_ENUM_NONE;
 
-		PoolItem item = ResPool::instance ().find (solvable);
-
 		gchar *bugzilla = new gchar ();
 		gchar *cve = new gchar ();
 
 		if (isKind<Patch>(solvable)) {
-			Patch::constPtr patch = asKind<Patch>(item);
+			Patch::constPtr patch = make<Patch>(solvable); // may use asKind<Patch> if libzypp-11.6.4 is asserted
 			zypp_check_restart (&restart, patch);
 
 			// Building links like "http://www.distro-update.org/page?moo;Bugfix release for kernel;http://www.test.de/bgz;test domain"
@@ -966,7 +948,7 @@ backend_get_update_detail_thread (PkBackend *backend)
 					  bugzilla,	// bugzilla
 					  cve,		// cve
 					  restart,	// restart -flag
-					  solvable.lookupStrAttribute (sat::SolvAttr::description).c_str (),	// update-text
+					  make<ResObject>(solvable)->description().c_str (),	// update-text
 					  NULL,		// ChangeLog text
 					  PK_UPDATE_STATE_ENUM_UNKNOWN,		// state of the update
 					  NULL, // date that the update was issued
@@ -1798,7 +1780,7 @@ backend_update_packages_thread (PkBackend *backend)
 		if (system == true)
 			continue;
 		sat::Solvable solvable = zypp_get_package_by_id (backend, package_ids[i]);
-		PoolItem item = ResPool::instance ().find (solvable);
+		PoolItem item(solvable);
 		item.status ().setToBeInstalled (ResStatus::USER);
 		Patch::constPtr patch = asKind<Patch>(item.resolvable ());
 		zypp_check_restart (&restart, patch);
@@ -2036,7 +2018,7 @@ backend_what_provides_thread (PkBackend *backend)
 				continue;
 
 			PkInfoEnum info = it->isSystem () ? PK_INFO_ENUM_INSTALLED : PK_INFO_ENUM_AVAILABLE;
-			zypp_backend_package (backend, info, *it, it->lookupStrAttribute (sat::SolvAttr::summary).c_str ());
+			zypp_backend_package (backend, info, *it,  make<ResObject>(*it)->summary().c_str ());
 		}
 	}
 
@@ -2097,7 +2079,7 @@ backend_download_packages_thread (PkBackend *backend)
 			for (ResPool::byName_iterator it = pool.byNameBegin (name); it != pool.byNameEnd (name); ++it) {
 				if (zypp_ver_and_arch_equal (it->satSolvable(), id_parts[PK_PACKAGE_ID_VERSION],
 							     id_parts[PK_PACKAGE_ID_ARCH])) {
-					size += 2 * it->satSolvable().lookupNumAttribute (sat::SolvAttr::downloadsize);
+					size += 2 * it->resolvable()->downloadSize();
 					item = *it;
 					break;
 				}

@@ -287,23 +287,6 @@ zypp_get_rpmHeader (const string &name, Edition edition)
 	return result;
 }
 
-
-string
-zypp_get_group (sat::Solvable item)
-{
-        string group;
-
-        if (item.isSystem ()) {
-
-                target::rpm::RpmHeader::constPtr rpmHeader = zypp_get_rpmHeader (item.name (), item.edition ());
-                group = rpmHeader->tag_group ();
-
-        } else {
-                group = item.lookupStrAttribute (sat::SolvAttr::group);
-        }
-        return str::toLower(group);
-}
-
 PkGroupEnum
 get_enum_group (const string &group_)
 {
@@ -666,7 +649,7 @@ zypp_emit_filtered_packages_in_list (PkBackend *backend, const vector<sat::Solva
 			continue;
 
 		zypp_backend_package (backend, PK_INFO_ENUM_INSTALLED, *it,
-				      it->lookupStrAttribute (sat::SolvAttr::summary).c_str ());
+				      make<ResObject>(*it)->summary().c_str());
 		installed.push_back (*it);
 	}
 
@@ -686,7 +669,7 @@ zypp_emit_filtered_packages_in_list (PkBackend *backend, const vector<sat::Solva
 		}
 		if (!match) {
 			zypp_backend_package (backend, PK_INFO_ENUM_AVAILABLE, *it,
-					      it->lookupStrAttribute (sat::SolvAttr::summary).c_str ());
+					      make<ResObject>(*it)->summary().c_str());
 		}
 	}
 }
@@ -927,7 +910,7 @@ zypp_perform_execution (PkBackend *backend, PerformType type, gboolean force)
 		// look for licenses to confirm
 
 		for (ResPool::const_iterator it = pool.begin (); it != pool.end (); ++it) {
-			if (it->status ().isToBeInstalled () && !(it->satSolvable ().lookupStrAttribute (sat::SolvAttr::eula).empty ())) {
+			if (it->status ().isToBeInstalled () && !(it->resolvable()->licenseToConfirm().empty ())) {
 				gchar *eula_id = g_strdup ((*it)->name ().c_str ());
 				gboolean has_eula = pk_backend_is_eula_valid (backend, eula_id);
 				if (!has_eula) {
@@ -936,7 +919,7 @@ zypp_perform_execution (PkBackend *backend, PerformType type, gboolean force)
 							eula_id,
 							package_id,
 							(*it)->vendor ().c_str (),
-							it->satSolvable ().lookupStrAttribute (sat::SolvAttr::eula).c_str ());
+							it->resolvable()->licenseToConfirm().c_str ());
 					pk_backend_error_code (backend, PK_ERROR_ENUM_NO_LICENSE_AGREEMENT, "You've to agree/decline a license");
 					g_free (package_id);
 					g_free (eula_id);
