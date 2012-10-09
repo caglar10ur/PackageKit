@@ -1337,7 +1337,7 @@ backend_resolve_thread (PkBackend *backend)
 
 			if (newest == sat::Solvable::noSolvable) {
 				newest = *it;
-			} else if (it->edition().match (newest.edition()) > 0) {
+			} else if (it->edition() > newest.edition() || Arch::compare(it->arch(), newest.arch()) > 0) {
 				newest = *it;
 			}
 			pkgs.push_back (*it);
