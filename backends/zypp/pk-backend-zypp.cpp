@@ -224,6 +224,7 @@ backend_get_requires_thread (PkBackend *backend)
 		Resolver solver(pool);
 
 		solver.setForceResolve (true);
+		solver.setIgnoreAlreadyRecommended (TRUE);
 
 		if (!solver.resolvePool ()) {
 			list<ResolverProblem_Ptr> problems = solver.problems ();

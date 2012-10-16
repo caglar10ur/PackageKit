@@ -727,6 +727,7 @@ zypp_get_patches (PkBackend *backend, set<PoolItem> &patches)
         ZYpp::Ptr zypp;
         zypp = get_zypp (backend);
 
+	zypp->resolver ()->setIgnoreAlreadyRecommended (TRUE);
 	zypp->resolver ()->resolvePool ();
 
         for (ResPoolProxy::const_iterator it = zypp->poolProxy ().byKindBegin<Patch>();
@@ -845,13 +846,10 @@ zypp_perform_execution (PkBackend *backend, PerformType type, gboolean force)
 
                 if (force)
                         zypp->resolver ()->setForceResolve (force);
-		if (type == UPDATE) {
-			//zypp->resolver ()->setOnlyRequires (TRUE);
-			zypp->resolver ()->setIgnoreAlreadyRecommended (TRUE);
-		}
 
                 // Gather up any dependencies
 		pk_backend_set_status (backend, PK_STATUS_ENUM_DEP_RESOLVE);
+		zypp->resolver ()->setIgnoreAlreadyRecommended (TRUE);
 		if (!zypp->resolver ()->resolvePool ()) {
                        // Manual intervention required to resolve dependencies
                        // TODO: Figure out what we need to do with PackageKit
@@ -987,8 +985,6 @@ zypp_perform_execution (PkBackend *backend, PerformType type, gboolean force)
         try {
                 ZYpp::Ptr zypp = get_zypp (backend);
 		zypp->resolver ()->setForceResolve (FALSE);
-		if (type == UPDATE)
-			zypp->resolver ()->setIgnoreAlreadyRecommended (FALSE);
 	} catch (const Exception &ex) { /* we tried */ }
 
         return ret;
